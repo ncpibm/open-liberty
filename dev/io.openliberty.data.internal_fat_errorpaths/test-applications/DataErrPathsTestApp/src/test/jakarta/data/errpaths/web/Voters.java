@@ -15,7 +15,10 @@ package test.jakarta.data.errpaths.web;
 import java.time.Month;
 import java.util.List;
 
+import jakarta.data.Sort;
 import jakarta.data.repository.BasicRepository;
+import jakarta.data.repository.Insert;
+import jakarta.data.repository.OrderBy;
 import jakarta.data.repository.Param;
 import jakarta.data.repository.Query;
 import jakarta.data.repository.Repository;
@@ -58,6 +61,20 @@ public interface Voters extends BasicRepository<Voter, Integer> {
                        @Param("day") int dayBorn);
 
     /**
+     * This invalid method has a conflict between its OrderBy annotation and
+     * method name keyword.
+     */
+    @OrderBy("ssn")
+    List<Voter> findByAddressOrderByName(String address);
+
+    /**
+     * This invalid method has a conflict between its OrderBy annotation and
+     * method name keyword. It also has a dynamic sort parameter.
+     */
+    @OrderBy("name")
+    List<Voter> findByAddressOrderBySSN(int ssn, Sort<Voter> sort);
+
+    /**
      * This invalid method has a mixture of positional and named parameters.
      */
     @Query("""
@@ -96,6 +113,13 @@ public interface Voters extends BasicRepository<Voter, Integer> {
     List<Voter> livingOn(@Param("street") String street,
                          @Param("city") String city, // extra, unused Param
                          @Param("state") String stateCode); // extra, unused Param
+
+    /**
+     * For testing an error where the method parameter allows multiple entities,
+     * but the return type only allows one.
+     */
+    @Insert
+    Voter register(Voter... v);
 
     /**
      * This invalid method has matching named parameters and Param annotation,
