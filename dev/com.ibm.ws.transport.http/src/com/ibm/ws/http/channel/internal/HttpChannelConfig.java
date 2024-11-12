@@ -970,7 +970,6 @@ public class HttpChannelConfig {
     }
 
     protected void parseH2MaxHeaderBlockSize(Object option) {
-        System.out.println("Passed in object " + option);
         if (Objects.nonNull(option)) {
             try {
                 this.http2MaxHeaderBlockSize = convertLong(option);
