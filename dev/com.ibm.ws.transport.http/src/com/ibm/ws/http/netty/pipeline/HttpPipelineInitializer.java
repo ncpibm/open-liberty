@@ -214,7 +214,7 @@ public class HttpPipelineInitializer extends ChannelInitializerWrapper {
     private void setupHttp11Pipeline(ChannelPipeline pipeline) {
 
         //TODO: check for best default first line max size (changing for jwt test)
-        HttpServerCodec sourceCodec = new HttpServerCodec(8192, Integer.MAX_VALUE, httpConfig.getIncomingBodyBufferSize());
+        HttpServerCodec sourceCodec = new HttpServerCodec(8192, httpConfig.getIncomingBodyBufferSize(), httpConfig.getLimitOfFieldSize(), httpConfig.getLimitOnNumberOfHeaders());
         pipeline.addLast(CRLF_VALIDATION_HANDLER, new CRLFValidationHandler());
         pipeline.addLast(NETTY_HTTP_SERVER_CODEC, sourceCodec);
         pipeline.addLast(HTTP_DISPATCHER_HANDLER_NAME, new HttpDispatcherHandler(httpConfig));
@@ -322,7 +322,7 @@ public class HttpPipelineInitializer extends ChannelInitializerWrapper {
 
             String id = String.valueOf(options.get(HttpConfigConstants.ID));
 
-            if (config == ConfigElement.SSL_OPTIONS){
+            if (config == ConfigElement.SSL_OPTIONS || config == ConfigElement.HTTP_OPTIONS){
                 configOptions.put(config, options);
                 activeConfigs.add(config);
             } else if (!isDefaultConfig(config, id)){
