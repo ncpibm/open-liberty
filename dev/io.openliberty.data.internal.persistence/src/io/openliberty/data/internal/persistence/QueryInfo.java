@@ -1136,6 +1136,10 @@ public class QueryInfo {
      * @throws Exception                         if an error occurs.
      */
     Object findAndUpdate(Object arg, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "findAndUpdate", loggable(arg), em);
+
         List<Object> results;
 
         boolean hasSingularEntityParam = false;
@@ -1159,6 +1163,14 @@ public class QueryInfo {
                 results.add(findAndUpdateOne(arg, em));
             }
         }
+
+        if (results.isEmpty())
+            throw exc(IllegalArgumentException.class,
+                      "CWWKD1092.lifecycle.arg.empty",
+                      method.getName(),
+                      repositoryInterface.getName(),
+                      method.getGenericParameterTypes()[0].getTypeName());
+
         em.flush();
 
         Class<?> returnType = method.getReturnType();
@@ -1217,6 +1229,8 @@ public class QueryInfo {
                                            false));
         }
 
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "findAndUpdate", loggable(returnValue));
         return returnValue;
     }
 
@@ -1232,6 +1246,10 @@ public class QueryInfo {
      * @throws Exception                  if an error occurs.
      */
     private Object findAndUpdateOne(Object e, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "findAndUpdateOne", loggable(e), em);
+
         String jpql = this.jpql;
 
         int versionParamIndex = entityInfo.idClassAttributeAccessors == null //
@@ -1302,7 +1320,11 @@ public class QueryInfo {
                       RepositoryImpl.LIFE_CYCLE_METHODS_THAT_RETURN_ENTITIES);
         }
 
-        return em.merge(toEntity(e));
+        Object returnValue = em.merge(toEntity(e));
+
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "findAndUpdateOne", loggable(returnValue));
+        return returnValue;
     }
 
     /**
@@ -2391,7 +2413,12 @@ public class QueryInfo {
      * @param attributeName name of the entity attribute.
      * @return the value of the attribute.
      */
+    @Trivial
     Object getAttribute(Object entity, String attributeName) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "getAttribute", loggable(entity), attributeName);
+
         List<Member> accessors = entityInfo.attributeAccessors.get(attributeName);
         if (accessors == null)
             throw new IllegalArgumentException(attributeName); // should never occur
@@ -2419,6 +2446,8 @@ public class QueryInfo {
             }
         }
 
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "getAttribute", loggable(value));
         return value;
     }
 
@@ -2435,15 +2464,23 @@ public class QueryInfo {
                     // id(this)
                     attributeName = entityInfo.attributeNames.get(By.ID);
                     if (attributeName == null && failIfNotFound)
-                        throw new MappingException("Entity class " + entityInfo.getType().getName() +
-                                                   " does not have a property named " + name +
-                                                   " or which is designated as the @Id."); // TODO NLS
+                        throw exc(UnsupportedOperationException.class,
+                                  "CWWKD1093.fn.not.applicable",
+                                  name,
+                                  entityInfo.getType().getName(),
+                                  method.getName(),
+                                  repositoryInterface.getName(),
+                                  "@Id");
                 } else if (len == 13 && name.regionMatches(true, 0, "version", 0, 7)) {
                     // version(this)
                     if (entityInfo.versionAttributeName == null && failIfNotFound)
-                        throw new MappingException("Entity class " + entityInfo.getType().getName() +
-                                                   " does not have a property named " + name +
-                                                   " or which is designated as the @Version."); // TODO NLS
+                        throw exc(UnsupportedOperationException.class,
+                                  "CWWKD1093.fn.not.applicable",
+                                  name,
+                                  entityInfo.getType().getName(),
+                                  method.getName(),
+                                  repositoryInterface.getName(),
+                                  "@Version");
                     else
                         attributeName = entityInfo.versionAttributeName;
                 } else {
@@ -2458,10 +2495,10 @@ public class QueryInfo {
             else
                 throw exc(MappingException.class,
                           "CWWKD1010.unknown.entity.prop",
-                          method.getName(),
-                          repositoryInterface.getName(),
                           name,
                           entityInfo.getType().getName(),
+                          method.getName(),
+                          repositoryInterface.getName(),
                           entityInfo.attributeTypes.keySet());
         } else {
             String lowerName = name.toLowerCase();
@@ -2483,15 +2520,23 @@ public class QueryInfo {
                         lowerName = lowerName.replace("_", "");
                         attributeName = entityInfo.attributeNames.get(lowerName);
                         if (attributeName == null && failIfNotFound) {
-                            // TODO If attempting to parse Query by Method Name without a By keyword, then the message
-                            // should also include the possibility that repository method is missing an annotation.
-                            throw exc(MappingException.class,
-                                      "CWWKD1010.unknown.entity.prop",
-                                      method.getName(),
-                                      repositoryInterface.getName(),
-                                      name,
-                                      entityInfo.getType().getName(),
-                                      entityInfo.attributeTypes.keySet());
+                            if (Util.hasOperationAnno(method))
+                                throw exc(MappingException.class,
+                                          "CWWKD1010.unknown.entity.prop",
+                                          name,
+                                          entityInfo.getType().getName(),
+                                          method.getName(),
+                                          repositoryInterface.getName(),
+                                          entityInfo.attributeTypes.keySet());
+                            else
+                                throw exc(MappingException.class,
+                                          "CWWKD1091.method.name.parse.err",
+                                          name,
+                                          entityInfo.getType().getName(),
+                                          method.getName(),
+                                          repositoryInterface.getName(),
+                                          Util.OP_ANNOS,
+                                          entityInfo.attributeTypes.keySet());
                         }
                     }
                 }
@@ -2523,7 +2568,8 @@ public class QueryInfo {
             try {
                 List<Member> accessors = entityInfo.attributeAccessors.get(sort.property());
                 if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled())
-                    Tr.debug(this, tc, "getCursorValues for " + entity, accessors);
+                    Tr.debug(this, tc, "getCursorValues for " + loggable(entity),
+                             accessors);
                 Object value = entity;
                 for (Member accessor : accessors)
                     if (accessor instanceof Method)
@@ -3468,17 +3514,23 @@ public class QueryInfo {
      *         Insert method signature.
      * @throws Exception if an error occurs.
      */
+    @Trivial
     Object insert(Object arg, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "insert", loggable(arg), em);
+
         boolean resultVoid = void.class.equals(singleType) ||
                              Void.class.equals(singleType);
         ArrayList<Object> results;
 
         boolean hasSingularEntityParam = false;
+        int entityCount = 0;
         if (entityParamType.isArray()) {
             int length = Array.getLength(arg);
             results = resultVoid ? null : new ArrayList<>(length);
-            for (int i = 0; i < length; i++) {
-                Object entity = toEntity(Array.get(arg, i));
+            for (; entityCount < length; entityCount++) {
+                Object entity = toEntity(Array.get(arg, entityCount));
                 em.persist(entity);
                 if (results != null)
                     results.add(entity);
@@ -3492,6 +3544,7 @@ public class QueryInfo {
             if (arg instanceof Iterable) {
                 results = resultVoid ? null : new ArrayList<>();
                 for (Object e : ((Iterable<?>) arg)) {
+                    entityCount++;
                     Object entity = toEntity(e);
                     em.persist(entity);
                     if (results != null)
@@ -3499,6 +3552,7 @@ public class QueryInfo {
                 }
                 em.flush();
             } else {
+                entityCount = 1;
                 hasSingularEntityParam = true;
                 results = resultVoid ? null : new ArrayList<>(1);
                 Object entity = toEntity(arg);
@@ -3508,6 +3562,13 @@ public class QueryInfo {
                     results.add(entity);
             }
         }
+
+        if (entityCount == 0)
+            throw exc(IllegalArgumentException.class,
+                      "CWWKD1092.lifecycle.arg.empty",
+                      method.getName(),
+                      repositoryInterface.getName(),
+                      method.getGenericParameterTypes()[0].getTypeName());
 
         Class<?> returnType = method.getReturnType();
         Object returnValue;
@@ -3575,6 +3636,8 @@ public class QueryInfo {
                                            false));
         }
 
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "insert", loggable(returnValue));
         return returnValue;
     }
 
@@ -3805,6 +3868,10 @@ public class QueryInfo {
      *                       was not found.
      */
     int remove(Object e, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "remove", loggable(e), em);
+
         Class<?> entityClass = entityInfo.getType();
 
         if (e == null)
@@ -3891,6 +3958,8 @@ public class QueryInfo {
             throw new DataException("Found " + numDeleted + " matching entities."); // ought to be unreachable
         }
 
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "remove", numDeleted);
         return numDeleted;
     }
 
@@ -3954,16 +4023,21 @@ public class QueryInfo {
      * @throws Exception if an error occurs.
      */
     Object save(Object arg, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "save", loggable(arg), em);
+
         boolean resultVoid = void.class.equals(singleType) ||
                              Void.class.equals(singleType);
         List<Object> results;
 
         boolean hasSingularEntityParam = false;
+        int entityCount = 0;
         if (entityParamType.isArray()) {
             results = new ArrayList<>();
             int length = Array.getLength(arg);
-            for (int i = 0; i < length; i++)
-                results.add(em.merge(toEntity(Array.get(arg, i))));
+            for (; entityCount < length; entityCount++)
+                results.add(em.merge(toEntity(Array.get(arg, entityCount))));
             em.flush();
         } else {
             arg = arg instanceof Stream //
@@ -3972,10 +4046,13 @@ public class QueryInfo {
 
             if (Iterable.class.isAssignableFrom(entityParamType)) {
                 results = new ArrayList<>();
-                for (Object e : ((Iterable<?>) arg))
+                for (Object e : ((Iterable<?>) arg)) {
+                    entityCount++;
                     results.add(em.merge(toEntity(e)));
+                }
                 em.flush();
             } else {
+                entityCount = 1;
                 hasSingularEntityParam = true;
                 results = resultVoid ? null : new ArrayList<>(1);
                 Object entity = em.merge(toEntity(arg));
@@ -3984,6 +4061,13 @@ public class QueryInfo {
                 em.flush();
             }
         }
+
+        if (entityCount == 0)
+            throw exc(IllegalArgumentException.class,
+                      "CWWKD1092.lifecycle.arg.empty",
+                      method.getName(),
+                      repositoryInterface.getName(),
+                      method.getGenericParameterTypes()[0].getTypeName());
 
         Class<?> returnType = method.getReturnType();
         Object returnValue;
@@ -4050,6 +4134,8 @@ public class QueryInfo {
                                            false));
         }
 
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "save", loggable(returnValue));
         return returnValue;
     }
 
@@ -4178,6 +4264,7 @@ public class QueryInfo {
      * @param args  repository method arguments
      * @throws Exception if an error occurs
      */
+    @Trivial // avoid logging customer data
     void setParameters(jakarta.persistence.Query query, Object... args) throws Exception {
         final boolean trace = TraceComponent.isAnyTracingEnabled();
 
@@ -4206,6 +4293,7 @@ public class QueryInfo {
                 query.setParameter(++p, arg);
             }
         }
+
         if (args != null &&
             jpqlParamCount < args.length &&
             type != Type.FIND &&
@@ -4288,6 +4376,7 @@ public class QueryInfo {
      * @param version            the version if versioned, otherwise null.
      * @throws Exception if an error occurs
      */
+    @Trivial // avoid tracing customer data
     void setParametersFromIdClassAndVersion(int startingParamIndex,
                                             jakarta.persistence.Query query,
                                             Object entity,
@@ -4506,7 +4595,12 @@ public class QueryInfo {
      * @return the number of entities updated (1 or 0).
      * @throws Exception if an error occurs.
      */
+    @Trivial
     int update(Object e, EntityManager em) throws Exception {
+        final boolean trace = TraceComponent.isAnyTracingEnabled();
+        if (trace && tc.isEntryEnabled())
+            Tr.entry(this, tc, "update", loggable(e), em);
+
         Class<?> entityClass = entityInfo.getType();
 
         if (e == null)
@@ -4580,6 +4674,9 @@ public class QueryInfo {
 
         if (numUpdated > 1) // ought to be unreachable
             throw new DataException("Found " + numUpdated + " matching entities.");
+
+        if (trace && tc.isEntryEnabled())
+            Tr.exit(this, tc, "update", numUpdated);
         return numUpdated;
     }
 
