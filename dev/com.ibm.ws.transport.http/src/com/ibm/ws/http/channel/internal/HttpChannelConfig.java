@@ -625,7 +625,7 @@ public class HttpChannelConfig {
         parseH2MaxResetFrames(props);
         parseH2ResetFramesWindow(props);
         parseH2MaxStreamsRefused(props);
-        parseH2MaxHeaderBlockSize(props);
+        parseH2MaxHeaderBlockSize(props.get(HttpConfigConstants.PROPNAME_H2_MAX_HEADER_BLOCK_SIZE));
         parseCookiesSameSitePartitioned(props);
         initSameSiteCookiesPatterns();
         parseHeaders(props);
@@ -969,18 +969,17 @@ public class HttpChannelConfig {
         }
     }
 
-    protected void parseH2MaxHeaderBlockSize(Map<Object, Object> props) {
-        Object value = props.get(HttpConfigConstants.PROPNAME_H2_MAX_HEADER_BLOCK_SIZE);
-        if (null != value) {
+    protected void parseH2MaxHeaderBlockSize(Object option) {
+        if (Objects.nonNull(option)) {
             try {
-                this.http2MaxHeaderBlockSize = convertLong(value);
+                this.http2MaxHeaderBlockSize = convertLong(option);
                 if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
                     Tr.event(tc, "Config: HTTP/2 Max Header Block Size is " + getH2MaxHeaderBlockSize());
                 }
             } catch (NumberFormatException nfe) {
                 FFDCFilter.processException(nfe, getClass().getName() + ".parseH2MaxHeaderBlockSize", "1");
                 if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
-                    Tr.event(tc, "Config: Invalid HTTP/2 Header Block Size; " + value);
+                    Tr.event(tc, "Config: Invalid HTTP/2 Header Block Size; " + option);
 
                 }
             }
