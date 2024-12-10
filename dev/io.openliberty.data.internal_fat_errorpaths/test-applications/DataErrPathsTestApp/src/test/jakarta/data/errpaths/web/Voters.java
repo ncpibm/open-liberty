@@ -14,10 +14,14 @@ package test.jakarta.data.errpaths.web;
 
 import java.time.Month;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import jakarta.data.Sort;
 import jakarta.data.repository.BasicRepository;
+import jakarta.data.repository.By;
+import jakarta.data.repository.Delete;
+import jakarta.data.repository.Find;
 import jakarta.data.repository.Insert;
 import jakarta.data.repository.OrderBy;
 import jakarta.data.repository.Param;
@@ -32,6 +36,8 @@ import jakarta.data.repository.Update;
  */
 @Repository(dataStore = "java:app/jdbc/DerbyDataSource")
 public interface Voters extends BasicRepository<Voter, Integer> {
+    static record NameAndZipCode(String name, int zipCode) {
+    }
 
     /**
      * This invalid method neglects to include the Param annotation for a
@@ -80,6 +86,20 @@ public interface Voters extends BasicRepository<Voter, Integer> {
     List<Voter> findByAddressOrderBySSN(int ssn, Sort<Voter> sort);
 
     /**
+     * This invalid method defines an ordering for results of a delete operation
+     * but has a return type that disallows returning results.
+     */
+    void deleteByAddressOrderByName(String address);
+
+    /**
+     * This invalid method defines an ordering for results of a delete operation
+     * but has a return type that disallows returning results.
+     */
+    @Delete
+    @OrderBy("name")
+    void discardInOrder(@By("address") String mailingAddress);
+
+    /**
      * This invalid method has a mixture of positional and named parameters.
      */
     @Query("""
@@ -120,11 +140,25 @@ public interface Voters extends BasicRepository<Voter, Integer> {
                          @Param("state") String stateCode); // extra, unused Param
 
     /**
+     * Find method that returns a record instead of an entity,
+     * but where the names of record components do not all match
+     * entity attribute names.
+     */
+    @Find
+    Optional<NameAndZipCode> nameAndZipCode(@By("ssn") int socialSecurityNumber);
+
+    /**
      * For testing an error where the method parameter allows multiple entities,
      * but the return type only allows one.
      */
     @Insert
     Voter register(Voter... v);
+
+    /**
+     * Delete method that attempts to return a record instead of an entity.
+     */
+    @Delete
+    Optional<NameAndZipCode> removeBySSN(@By("ssn") int socialSecurityNumber);
 
     /**
      * This invalid method has matching named parameters and Param annotation,
