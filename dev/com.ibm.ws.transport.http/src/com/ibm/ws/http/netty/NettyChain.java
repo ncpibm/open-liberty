@@ -35,6 +35,7 @@ import com.ibm.wsspi.kernel.service.utils.FrameworkState;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
+import io.openliberty.http.netty.quiesce.QuiesceStrategy;
 import io.openliberty.netty.internal.ConfigConstants;
 import io.openliberty.netty.internal.NettyFramework;
 import io.openliberty.netty.internal.ServerBootstrapExtended;
@@ -280,6 +281,9 @@ public class NettyChain extends HttpChain {
                 }
                 state.set(ChainState.STOPPED);
             }
+            //Register chain for quiesce, NO_OP is passed as the task as there is no special 
+            //quiesce action required at this time
+            nettyFramework.registerEndpointQuiesce(future.channel(), QuiesceStrategy.NO_OP.getTask());
             notifyAll();
         }
     }

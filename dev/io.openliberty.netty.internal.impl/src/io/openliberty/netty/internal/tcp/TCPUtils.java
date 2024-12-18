@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2021, 2023 IBM Corporation and others.
+ * Copyright (c) 2021, 2024 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
  * which accompanies this distribution, and is available at
@@ -105,9 +105,7 @@ public class TCPUtils {
 			oFuture = channel.connect(new InetSocketAddress(inetHost, inetPort));
 		}
 		final ChannelFuture openFuture = oFuture;
-		if (openListener != null) {
-			openFuture.addListener(generateOpenListenerWrapper(framework, openListener));
-		}
+		
 		final String newHost = inetHost;
 
 		openFuture.addListener(future -> {
@@ -138,8 +136,7 @@ public class TCPUtils {
                 	synchronized (framework.getOutboundConnections()) {
                 		framework.getOutboundConnections().add(channel);
                 	}
-                }
-
+				}
 				// set up a helpful log message
 				String hostLogString = newHost;
 				SocketAddress addr = channel.localAddress();
@@ -237,6 +234,10 @@ public class TCPUtils {
 				}
 			}
 		});
+
+		if (openListener != null) {
+			openFuture.addListener(generateOpenListenerWrapper(framework, openListener));
+		}		
 		return openFuture;
 	}
 	
@@ -265,7 +266,7 @@ public class TCPUtils {
 	private static Channel startHelper(NettyFrameworkImpl framework, AbstractBootstrap bootstrap,
 			TCPConfigurationImpl config, String inetHost, int inetPort, ChannelFutureListener openListener)
 					throws NettyException {
-		if(framework.isStopping()){ // Framework already started and is no longer active
+		if(framework.isStopping()){ // Framework already stopping and is no longer active
 			if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
 				Tr.debug(tc, "server is stopping, channel will not be started");
 			}
@@ -283,7 +284,7 @@ public class TCPUtils {
 				return channel;
 			} catch (Exception e) {
 				if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-					Tr.debug(tc, "NettyFramework signaled- caught exception:: " + e.getMessage());
+					Tr.debug(tc, "NettyFramework signaled- caught exception: " + e.getMessage());
 				}
 			}
 		}
