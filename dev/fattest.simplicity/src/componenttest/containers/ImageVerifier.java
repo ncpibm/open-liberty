@@ -55,6 +55,9 @@ public final class ImageVerifier {
             _expectedImages.add(DockerImageName.parse(image));
         }
 
+        //TODO remove once WebSphere Liberty is updated
+        _expectedImages.add(DockerImageName.parse("gvenzl/oracle-free:23.3-full-faststart"));
+
         //Add images from the testcontainers project (tracked in fattest.simplicity/bnd.bnd)
         for (String image : Arrays.asList("testcontainers/ryuk:0.9.0", "testcontainers/sshd:1.2.0", "testcontainers/vnc-recorder:1.3.0", "alpine:3.17")) {
             _expectedImages.add(DockerImageName.parse(image));
@@ -63,17 +66,11 @@ public final class ImageVerifier {
         expectedImages = Collections.unmodifiableSet(_expectedImages);
     }
 
-    public static DockerImageName collectImage(DockerImageName image) {
-        return collectImage(image, null);
-    }
-
-    public static DockerImageName collectImage(DockerImageName image, DockerImageName output) {
+    public static void collectImage(DockerImageName image) {
         if (!expectedImages.contains(image)) {
             Log.info(c, "collectImage", "Found an unknown image: " + image);
             forgottenImages.add(image);
         }
-
-        return output != null ? output : image;
     }
 
     public static void assertImages() throws IllegalStateException {

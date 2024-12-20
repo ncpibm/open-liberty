@@ -1020,7 +1020,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Delete multiple entries and use a default method to atomically remove and return a removed entity.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testDefaultRepositoryMethod() {
         products.clear();
@@ -1194,7 +1193,6 @@ public class DataTestServlet extends FATServlet {
      * Repository delete method with query language (JPQL) that contains
      * an entity identifier variable.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testDeleteQueryWithEntityIdentifierVariable() {
         products.purge("TestDeleteQueryWithEntityIdentifierVariable-Product-%");
@@ -1570,6 +1568,35 @@ public class DataTestServlet extends FATServlet {
     }
 
     /**
+     * Use exists methods in the Query by Method Name pattern where the return type
+     * is a CompletionStage or CompletableFuture and the repository method is
+     * annotated to run Asynchronous.
+     */
+    @Test
+    public void testExistsAsync() throws ExecutionException, //
+                    InterruptedException, TimeoutException {
+        CompletionStage<Boolean> stage1 = primes.existsByNameIgnoreCase("thirty-one");
+        CompletionStage<Boolean> stage2 = primes.existsByNameIgnoreCase("thirty-two");
+
+        assertEquals(Boolean.TRUE,
+                     stage1.toCompletableFuture()
+                                     .get(TIMEOUT_MINUTES, TimeUnit.MINUTES));
+
+        assertEquals(Boolean.FALSE,
+                     stage2.toCompletableFuture()
+                                     .get(TIMEOUT_MINUTES, TimeUnit.MINUTES));
+
+        CompletableFuture<Boolean> cf1 = primes.existsByRomanNumeralIgnoreCase("XLI");
+        CompletableFuture<Boolean> cf2 = primes.existsByRomanNumeralIgnoreCase("XLII");
+
+        assertEquals(Boolean.TRUE,
+                     cf1.get(TIMEOUT_MINUTES, TimeUnit.MINUTES));
+
+        assertEquals(Boolean.FALSE,
+                     cf2.get(TIMEOUT_MINUTES, TimeUnit.MINUTES));
+    }
+
+    /**
      * Query-by-method name repository operation to remove and return one or more entities.
      */
     @Test
@@ -1776,7 +1803,7 @@ public class DataTestServlet extends FATServlet {
     /**
      * Find-and-delete repository operations that return one or more IDs, corresponding to removed entities.
      */
-    @SkipIfSysProp(DB_Oracle) //TODO Eclipse link SQL Generation bug on Oracle: https://github.com/OpenLiberty/open-liberty/issues/28545
+    @SkipIfSysProp(DB_Oracle) //TODO Eclipse link SQL Generation bug on Oracle: https://github.com/OpenLiberty/open-liberty/issues/30444
     @Test
     public void testFindAndDeleteReturnsIds() throws Exception {
         String jdbcJarName = System.getenv().getOrDefault("DB_DRIVER", "UNKNOWN");
@@ -1819,7 +1846,6 @@ public class DataTestServlet extends FATServlet {
      * record class, or id class.
      */
     @Test
-    @SkipIfSysProp(DB_Oracle) //TODO Eclipse link SQL Generation bug on Oracle: https://github.com/OpenLiberty/open-liberty/issues/28545
     public void testFindAndDeleteReturnsInvalidTypes() {
         packages.deleteAll();
 
@@ -1887,9 +1913,6 @@ public class DataTestServlet extends FATServlet {
      * Find-and-delete repository operations that return one or more objects, corresponding to removed entities.
      */
     @Test
-    @SkipIfSysProp({
-                     DB_Oracle //TODO Eclipse link SQL Generation bug on Oracle: https://github.com/OpenLiberty/open-liberty/issues/28545
-    })
     public void testFindAndDeleteReturnsObjects() {
         String jdbcJarName = System.getenv().getOrDefault("DB_DRIVER", "UNKNOWN");
         boolean supportsOrderByForUpdate = !jdbcJarName.startsWith("derby");
@@ -2064,7 +2087,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Search for missing item. Insert it. Search again.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testFindCreateFind() {
         UUID id = UUID.nameUUIDFromBytes("OL306-233F".getBytes());
@@ -2122,7 +2144,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Use the % and _ characters, which are wildcards in JPQL, within query parameters.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testFindLike() throws Exception {
         // Remove data from previous tests:
@@ -2288,7 +2309,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Repository methods where the FROM clause identifies the entity.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testFromClauseIdentifiesEntity() {
         products.clear();
@@ -3817,7 +3837,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Use a repository where methods are for different entities.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testMultipleEntitiesInARepository() {
         // Remove any pre-existing data that could interfere with the test:
@@ -5116,7 +5135,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Repository method having only a SELECT clause.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testSelectClauseOnly() {
         products.clear();
@@ -5202,6 +5220,37 @@ public class DataTestServlet extends FATServlet {
         } catch (NonUniqueResultException x) {
             // expected
         }
+    }
+
+    /**
+     * Tests a repository method that returns a Page with a single boolean
+     * result on it.
+     */
+    @Test
+    public void testSingularResultPageOfBoolean() {
+        PageRequest pageReq = PageRequest.ofSize(6);
+        Page<Boolean> page = primes.pageOfExists(pageReq);
+
+        assertEquals(List.of(true), page.content());
+        assertEquals(false, page.hasNext());
+        assertEquals(false, page.hasPrevious());
+        assertEquals(1L, page.totalElements());
+        assertEquals(1L, page.totalPages());
+    }
+
+    /**
+     * Tests a repository method that returns a Page with a single numeric
+     * result on it.
+     */
+    @Test
+    public void testSingularResultPageNumeric() {
+        Page<Long> page = primes.pageOfCountUpTo(20L, PageRequest.ofSize(4));
+
+        assertEquals(List.of(8L), page.content());
+        assertEquals(false, page.hasNext());
+        assertEquals(false, page.hasPrevious());
+        assertEquals(1L, page.totalElements());
+        assertEquals(1L, page.totalPages());
     }
 
     /**
@@ -6004,7 +6053,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Update multiple entries.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testUpdateMultiple() {
         products.clear();
@@ -6127,7 +6175,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Use update methods with a versioned entity parameter to make updates.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testUpdateWithVersionedEntityParameter() {
         Product prod1 = new Product();
@@ -6180,7 +6227,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Use JPQL query to update based on version.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testVersionedUpdateViaQuery() {
         Product prod1 = new Product();
@@ -6218,7 +6264,6 @@ public class DataTestServlet extends FATServlet {
     /**
      * Use repository save method to update based on version.
      */
-    @SkipIfSysProp(DB_Postgres) //TODO Failing on Postgres due to eclipselink issue.  https://github.com/OpenLiberty/open-liberty/issues/28368
     @Test
     public void testVersionedUpdateViaRepository() {
         Product prod1 = new Product();
