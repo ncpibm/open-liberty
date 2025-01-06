@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2004, 2022 IBM Corporation and others.
+ * Copyright (c) 2004, 2025 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
  * which accompanies this distribution, and is available at
@@ -15,6 +15,7 @@ package com.ibm.ws.http.logging.internal;
 import java.io.FileNotFoundException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.text.Format;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -56,6 +57,9 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Implementation of an NCSA access log file. This will perform the disk IO on
@@ -140,7 +144,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
 
     private boolean isLogRolloverScheduled = false;
 
-    private volatile Timer timedLogRollover_Timer = new Timer();
+    private volatile ScheduledExecutorService scheduler;
 
     /**
      * Constructor of this NCSA access log file.
@@ -165,8 +169,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
     @Deactivate
     protected void deactivate(ComponentContext ctx) {
         if (this.isLogRolloverScheduled) {
-            timedLogRollover_Timer.cancel();
-            timedLogRollover_Timer.purge();
+            scheduler.shutdown();
             this.isLogRolloverScheduled = false;
         }
         stop();
@@ -686,6 +689,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
 
         //if the rollover has already been scheduled, cancel it
         //this is either a reschedule, or a unschedule
+
         if (this.isLogRolloverScheduled) {
             //null and empty rolloverStartTime are the same
             if (rolloverStartTime == null)
@@ -696,8 +700,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
                 return;
             }
             else {
-                timedLogRollover_Timer.cancel();
-                timedLogRollover_Timer.purge();
+                scheduler.shutdownNow();
                 this.isLogRolloverScheduled = false;
             }
         }
@@ -739,7 +742,6 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
         }
 
 
-
         this.rolloverStartTime = rolloverStartTime;
         this.rolloverInterval = rolloverInterval;
 
@@ -779,21 +781,26 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
         if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
             Tr.debug(tc, "Log rollover settings updated - next rollover will be at ... "+sched.getTime());
         }
-
+        long initialDelay = firstRollover.getTime() - System.currentTimeMillis();
         //schedule rollover
-        timedLogRollover_Timer = new Timer(true);
-        TimedLogRoller tlr = new TimedLogRoller(this.getWorkerThread());
-        timedLogRollover_Timer.scheduleAtFixedRate(tlr, firstRollover, rolloverInterval*60000);
-        this.isLogRolloverScheduled = true;
+        scheduler = Executors.newScheduledThreadPool(1);
+        Runnable logRolloverTask = new LogRoller(this.getWorkerThread());
+        scheduler.scheduleAtFixedRate(
+            logRolloverTask,
+            initialDelay,
+            TimeUnit.MINUTES.toMillis(rolloverInterval),
+            TimeUnit.MILLISECONDS
+        );
+    
     }
 
     /**
      * LogRoller task to be run/scheduled in timed log rollover.
      */
-    private class TimedLogRoller extends TimerTask {
+    private class LogRoller implements Runnable {
         private WorkerThread wt;
         
-        TimedLogRoller(WorkerThread wt) {
+        LogRoller(WorkerThread wt) {
             this.wt = wt;
         }
 
