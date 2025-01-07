@@ -169,7 +169,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
     @Deactivate
     protected void deactivate(ComponentContext ctx) {
         if (this.isLogRolloverScheduled) {
-            scheduler.shutdown();
+            scheduler.shutdownNow();
             this.isLogRolloverScheduled = false;
         }
         stop();
