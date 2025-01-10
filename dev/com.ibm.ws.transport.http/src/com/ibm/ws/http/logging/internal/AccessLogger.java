@@ -55,8 +55,6 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -687,13 +685,19 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
         String rolloverStartTime = getRolloverStartTime();
         long rolloverInterval = getRolloverInterval();
 
+        //null and empty rolloverStartTime are the same
+        if (rolloverStartTime == null)
+            rolloverStartTime = "";
+
         //if the rollover has already been scheduled, cancel it
         //this is either a reschedule, or a unschedule
 
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
+            this.isLogRolloverScheduled = false;
+            }
+        
         if (this.isLogRolloverScheduled) {
-            //null and empty rolloverStartTime are the same
-            if (rolloverStartTime == null)
-                rolloverStartTime = "";
             //if neither of the rollover attributes change, return without rescheduling
             //if filePath is changed, need to reschedule with correct WorkerThread
             if (this.rolloverStartTime.equals(rolloverStartTime) && this.rolloverInterval == rolloverInterval && !isFilePathChanged) {
@@ -782,6 +786,7 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
             Tr.debug(tc, "Log rollover settings updated - next rollover will be at ... "+sched.getTime());
         }
         long initialDelay = firstRollover.getTime() - System.currentTimeMillis();
+
         //schedule rollover
         scheduler = Executors.newScheduledThreadPool(1);
         Runnable logRolloverTask = new LogRoller(this.getWorkerThread());
