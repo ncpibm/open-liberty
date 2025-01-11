@@ -686,27 +686,27 @@ public class AccessLogger extends LoggerOffThread implements AccessLog {
         long rolloverInterval = getRolloverInterval();
 
         //null and empty rolloverStartTime are the same
-        if (rolloverStartTime == null)
+        if (rolloverStartTime == null) {
             rolloverStartTime = "";
+        }
 
         //if the rollover has already been scheduled, cancel it
         //this is either a reschedule, or a unschedule
-
+        
+        // Cancel existing scheduler if needed
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
             this.isLogRolloverScheduled = false;
-            }
-        
-        if (this.isLogRolloverScheduled) {
-            //if neither of the rollover attributes change, return without rescheduling
-            //if filePath is changed, need to reschedule with correct WorkerThread
-            if (this.rolloverStartTime.equals(rolloverStartTime) && this.rolloverInterval == rolloverInterval && !isFilePathChanged) {
-                return;
-            }
-            else {
-                scheduler.shutdownNow();
-                this.isLogRolloverScheduled = false;
-            }
+        }
+
+        //if neither of the rollover attributes change, return without rescheduling
+        //if filePath is changed, need to reschedule with correct WorkerThread
+        // Skip rescheduling if no configuration changes
+        if (this.isLogRolloverScheduled &&
+            this.rolloverStartTime.equals(rolloverStartTime) &&
+            this.rolloverInterval == rolloverInterval &&
+            !isFilePathChanged) {
+            return;
         }
 
         //if both rolloverStartTime and rolloverInterval are empty, return
